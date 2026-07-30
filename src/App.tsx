@@ -18,7 +18,10 @@ import {
   X,
   FileText,
   Navigation,
-  Plus
+  Plus,
+  Route,
+  BookOpen,
+  Printer
 } from 'lucide-react';
 
 import SamsaraMap from './components/SamsaraMap';
@@ -65,7 +68,7 @@ export default function App() {
   const [projectNumbers, setProjectNumbers] = useState<string[]>(['']);
   const [projectActivities, setProjectActivities] = useState<string[]>(['']);
   const [projectRelatedEnabled, setProjectRelatedEnabled] = useState<boolean[]>([false]);
-  const [relatedProjectNumbers, setRelatedProjectNumbers] = useState<string[]>(['']);
+  const [relatedProjectNumbers, setRelatedProjectNumbers] = useState<string[][]>([['']]);
   const [timeGapThresholdMinutes, setTimeGapThresholdMinutes] = useState<number>(5);
   const [distanceThresholdMeters, setDistanceThresholdMeters] = useState<number>(200);
   const [isProcessed, setIsProcessed] = useState<boolean>(false);
@@ -87,6 +90,7 @@ export default function App() {
   
   // Drag & drop state
   const [isDragActive, setIsDragActive] = useState(false);
+  const [isManualOpen, setIsManualOpen] = useState<boolean>(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   // History state
@@ -156,7 +160,7 @@ export default function App() {
     setProjectNumbers(['']);
     setProjectActivities(['']);
     setProjectRelatedEnabled([false]);
-    setRelatedProjectNumbers(['']);
+    setRelatedProjectNumbers([['']]);
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
@@ -298,9 +302,12 @@ export default function App() {
       
       let hasEmptyRelated = false;
       for (let i = 0; i < projectNumbers.length; i++) {
-        if (projectRelatedEnabled[i] && !(relatedProjectNumbers[i] || '').trim()) {
-          hasEmptyRelated = true;
-          break;
+        if (projectRelatedEnabled[i]) {
+          const sublist = relatedProjectNumbers[i] || [];
+          if (sublist.length === 0 || sublist.some(p => p.trim() === '')) {
+            hasEmptyRelated = true;
+            break;
+          }
         }
       }
 
@@ -309,6 +316,10 @@ export default function App() {
         return;
       }
     }
+
+    const serializedRelated = relatedProjectNumbers.map(sublist => 
+      sublist.map(p => p.trim()).filter(Boolean).join(',')
+    );
 
     processUploadedFile(
       file,
@@ -322,7 +333,7 @@ export default function App() {
       distanceThresholdMeters,
       projectActivities,
       projectRelatedEnabled,
-      relatedProjectNumbers
+      serializedRelated
     );
   };
 
@@ -330,6 +341,11 @@ export default function App() {
   const handleCsvColumnChange = (column: string) => {
     setSelectedCsvColumn(column);
     if (!file || !fileType) return;
+
+    const serializedRelated = relatedProjectNumbers.map(sublist => 
+      sublist.map(p => p.trim()).filter(Boolean).join(',')
+    );
+
     processUploadedFile(
       file,
       fileType,
@@ -342,7 +358,7 @@ export default function App() {
       distanceThresholdMeters,
       projectActivities,
       projectRelatedEnabled,
-      relatedProjectNumbers
+      serializedRelated
     );
   };
 
@@ -394,31 +410,29 @@ export default function App() {
       <header className="h-16 px-6 lg:px-8 border-b border-slate-200 bg-white flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-xs">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-500/10">
-            <Navigation className="w-4.5 h-4.5 text-white rotate-45" />
+            <Route className="w-4.5 h-4.5 text-white" />
           </div>
           <div>
             <h1 className="font-bold text-base tracking-tight text-slate-800 flex items-center gap-2">
-              Samsara Log Processor
+              SchEZPath
             </h1>
             <p className="hidden sm:block text-[10px] text-slate-400 font-semibold tracking-widest uppercase">
-              GPS Boundary Automator
+              Samsara Logs Trip Automator
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-6">
-          <div className="flex items-center gap-2">
-            <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></div>
-            <span className="text-[10px] font-bold text-slate-500 uppercase tracking-widest">System Active</span>
-          </div>
-          <div className="hidden md:block h-8 w-[1px] bg-slate-200"></div>
-          <div className="hidden md:flex items-center gap-3">
-            <div className="text-right">
-              <p className="text-xs font-semibold leading-none">Dispatch Ops</p>
-              <p className="text-[10px] text-slate-400 font-medium mt-0.5">Logistics Admin</p>
-            </div>
-            <div className="w-8 h-8 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-xs text-indigo-600">
-              DO
-            </div>
+        <div className="flex items-center gap-4">
+          <button
+            onClick={() => setIsManualOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 border border-slate-200 hover:border-indigo-100 transition-all cursor-pointer"
+            title="Open User Manual"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>User Manual & Guide</span>
+          </button>
+          <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
+            <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+            <span className="text-[9px] font-bold text-emerald-700 uppercase tracking-wider">Active</span>
           </div>
         </div>
       </header>
@@ -739,19 +753,62 @@ export default function App() {
                           </div>
 
                           {(projectRelatedEnabled[idx] || false) && (
-                            <div className="space-y-1 animate-fadeIn duration-200">
-                              <span className="text-[10px] font-semibold text-slate-500">Related Project Number</span>
-                              <input
-                                type="text"
-                                value={relatedProjectNumbers[idx] || ''}
-                                onChange={(e) => {
-                                  const updated = [...relatedProjectNumbers];
-                                  updated[idx] = e.target.value;
-                                  setRelatedProjectNumbers(updated);
-                                }}
-                                placeholder="e.g. 26-240027"
-                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 font-semibold"
-                              />
+                            <div className="space-y-2.5 animate-fadeIn duration-200 bg-slate-50/70 p-3 rounded-xl border border-slate-200/50">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Related Project Numbers</span>
+                                <span className="text-[10px] text-slate-400 font-semibold font-mono">({(relatedProjectNumbers[idx] || []).length}/10)</span>
+                              </div>
+                              
+                              <div className="space-y-1.5 max-h-[180px] overflow-y-auto pr-0.5">
+                                {(relatedProjectNumbers[idx] || ['']).map((relProj, rIdx) => (
+                                  <div key={rIdx} className="flex items-center gap-1.5">
+                                    <input
+                                      type="text"
+                                      value={relProj}
+                                      onChange={(e) => {
+                                        const updated = [...relatedProjectNumbers];
+                                        const sublist = [...(updated[idx] || [''])];
+                                        sublist[rIdx] = e.target.value;
+                                        updated[idx] = sublist;
+                                        setRelatedProjectNumbers(updated);
+                                      }}
+                                      placeholder={`e.g. 26-240027`}
+                                      className="flex-1 text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 font-semibold"
+                                    />
+                                    {(relatedProjectNumbers[idx] || ['']).length > 1 && (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          const updated = [...relatedProjectNumbers];
+                                          const sublist = (updated[idx] || ['']).filter((_, i) => i !== rIdx);
+                                          updated[idx] = sublist.length > 0 ? sublist : [''];
+                                          setRelatedProjectNumbers(updated);
+                                        }}
+                                        className="p-1.5 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-all cursor-pointer shrink-0"
+                                        title="Remove related project number"
+                                      >
+                                        <X className="w-3.5 h-3.5" />
+                                      </button>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+
+                              {(relatedProjectNumbers[idx] || ['']).length < 10 && (
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    const updated = [...relatedProjectNumbers];
+                                    const sublist = [...(updated[idx] || [''])];
+                                    sublist.push('');
+                                    updated[idx] = sublist;
+                                    setRelatedProjectNumbers(updated);
+                                  }}
+                                  className="w-full py-1 px-2.5 border border-dashed border-indigo-200 hover:border-indigo-400 text-indigo-600 hover:bg-indigo-50/50 rounded-lg text-[10px] font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+                                >
+                                  <Plus className="w-3 h-3" /> Add Related Project Number
+                                </button>
+                              )}
                             </div>
                           )}
 
@@ -785,7 +842,7 @@ export default function App() {
                           setProjectNumbers([...projectNumbers, '']);
                           setProjectActivities([...projectActivities, '']);
                           setProjectRelatedEnabled([...projectRelatedEnabled, false]);
-                          setRelatedProjectNumbers([...relatedProjectNumbers, '']);
+                          setRelatedProjectNumbers([...relatedProjectNumbers, ['']]);
                         }}
                         className="w-full py-1.5 px-3 border border-dashed border-indigo-200 hover:border-indigo-400 text-indigo-600 hover:bg-indigo-50/50 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer mt-1"
                       >
@@ -987,14 +1044,345 @@ export default function App() {
       </main>
 
       {/* Footer */}
-      <footer className="h-12 bg-white border-t border-slate-200 px-6 lg:px-8 flex items-center justify-between text-[10px] font-medium text-slate-400 shrink-0 font-sans mt-12">
-        <div>Connected to Samsara Cloud API v1.0.4</div>
-        <div className="flex gap-4">
-          <span>Version 2.4.0-Stable</span>
+      <footer className="bg-white border-t border-slate-200 px-6 lg:px-8 py-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-[10px] font-medium text-slate-400 shrink-0 font-sans mt-12">
+        <div className="flex flex-col gap-1 text-center sm:text-left">
+          <div className="flex items-center gap-1.5 justify-center sm:justify-start">
+            <span>© {new Date().getFullYear()} SchEZPath. All rights reserved.</span>
+            <span className="text-slate-200">|</span>
+            <span className="opacity-60 hover:opacity-100 transition-opacity">Developer: Patrick Franz O. B.</span>
+          </div>
+          <div className="text-slate-300 font-normal">Samsara Logs Trip Automator Suite</div>
+        </div>
+        <div className="flex items-center gap-4">
+          <span>Connected to Samsara Cloud API v1.0.4</span>
           <span className="text-slate-200">|</span>
-          <span className="text-indigo-500 cursor-pointer hover:underline">View Documentation</span>
+          <span>Version 2.5.0-Stable</span>
+          <span className="text-slate-200">|</span>
+          <button 
+            onClick={() => setIsManualOpen(true)}
+            className="text-indigo-500 cursor-pointer hover:underline hover:text-indigo-600 font-semibold focus:outline-none"
+          >
+            View Documentation & Manual
+          </button>
         </div>
       </footer>
+
+      {/* Interactive & Printable User Manual Modal */}
+      <AnimatePresence>
+        {isManualOpen && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center z-50 p-4 overflow-y-auto no-print">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              transition={{ duration: 0.2 }}
+              className="bg-white w-full max-w-4xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden border border-slate-200"
+            >
+              {/* Modal Control Header */}
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex items-center justify-between shrink-0 no-print">
+                <div className="flex items-center gap-2">
+                  <BookOpen className="w-5 h-5 text-indigo-600" />
+                  <div>
+                    <h2 className="text-sm font-bold text-slate-800">SchEZPath Operations Guide</h2>
+                    <p className="text-[10px] text-slate-400 font-medium">Visual handbook & printing engine</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => {
+                      window.print();
+                    }}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-indigo-600 hover:bg-indigo-700 transition-all shadow-xs cursor-pointer"
+                    title="Export handbook as a clean PDF document"
+                  >
+                    <Printer className="w-3.5 h-3.5" />
+                    <span>Download PDF Manual</span>
+                  </button>
+                  <button
+                    onClick={() => setIsManualOpen(false)}
+                    className="p-1.5 text-slate-400 hover:text-slate-600 hover:bg-slate-100 rounded-lg transition-all cursor-pointer"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+              </div>
+
+              {/* Printable Area Wrapper */}
+              <div className="printable-manual overflow-y-auto p-6 lg:p-10 space-y-8 flex-1 bg-white select-text">
+                {/* Print Optimization Styles */}
+                <style dangerouslySetInnerHTML={{ __html: `
+                  @media print {
+                    /* Hide everything except the printable manual */
+                    body > * {
+                      display: none !important;
+                    }
+                    body {
+                      background: white !important;
+                      color: black !important;
+                      padding: 0 !important;
+                      margin: 0 !important;
+                    }
+                    .printable-manual {
+                      display: block !important;
+                      position: absolute !important;
+                      left: 0 !important;
+                      top: 0 !important;
+                      width: 100% !important;
+                      max-height: none !important;
+                      overflow: visible !important;
+                      padding: 2.5cm !important;
+                      font-size: 11pt !important;
+                      background: white !important;
+                    }
+                    .no-print {
+                      display: none !important;
+                    }
+                    /* Ensure nice page breaks */
+                    .page-break {
+                      page-break-before: always !important;
+                    }
+                    .print-border {
+                      border: 1px solid #cbd5e1 !important;
+                    }
+                    .print-bg-slate {
+                      background-color: #f8fafc !important;
+                    }
+                    .print-bg-indigo {
+                      background-color: #e0e7ff !important;
+                    }
+                  }
+                `}} />
+
+                {/* Cover & Title Block */}
+                <div className="border-b border-slate-100 pb-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                  <div>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="w-9 h-9 bg-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
+                        <Route className="w-5 h-5 text-white" />
+                      </div>
+                      <span className="text-xl font-black text-indigo-900 tracking-tight">SchEZPath</span>
+                    </div>
+                    <h1 className="text-2xl font-black text-slate-800 tracking-tight uppercase">Operations &amp; Training Manual</h1>
+                    <p className="text-xs text-slate-500 font-semibold mt-1">
+                      Professional Guide for the Samsara Logs Trip Automator Suite
+                    </p>
+                  </div>
+                  <div className="text-right text-[10px] text-slate-400 font-mono space-y-0.5 md:border-l md:border-slate-200 md:pl-4">
+                    <p className="font-bold text-slate-600 uppercase tracking-wider">System Reference</p>
+                    <p>Doc ID: SEP-MAN-2026</p>
+                    <p>Version: v2.5.0-Stable</p>
+                    <p>Issued: July 2026</p>
+                  </div>
+                </div>
+
+                {/* Brief Overview */}
+                <div className="bg-indigo-50/50 print-bg-indigo border border-indigo-100 rounded-2xl p-5 space-y-2">
+                  <h3 className="text-xs font-bold text-indigo-900 uppercase tracking-widest">Introduction</h3>
+                  <p className="text-xs text-indigo-950 leading-relaxed">
+                    <strong>SchEZPath</strong> is a specialized automation engine built entirely for logistics managers and operators. 
+                    It simplifies the complex process of parsing, analyzing, and labeling GPS shift boundaries and physical project locations recorded via Samsara sensors. 
+                    By identifying time gaps and distance coordinates locally on your browser, SchEZPath maps complex project configurations and exports polished, ready-to-use trip logs instantly.
+                  </p>
+                </div>
+
+                {/* System Capabilities / Features list */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                    Key Features &amp; System Capabilities
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Dynamic Shift Boundary Labeling</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Instantly locates the chronological start and end of trips, applying designated custom labels in either <strong>Append</strong> or <strong>Replace</strong> mode to demarcate driver shifts.
+                      </p>
+                    </div>
+
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Advanced Project Mapping Gaps</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Scans geographical coordinates to locate Samsara "time-gaps" and automatically assigns them to corresponding project names and operational activities.
+                      </p>
+                    </div>
+
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Support for up to 10 Related Projects</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Allows adding up to 10 fallback/related project numbers per active configuration. If a coordinate doesn't match the primary ID, the engine automatically checks secondary values.
+                      </p>
+                    </div>
+
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Geospatial Threshold Configs</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Customize advanced matching parameters including <strong>Time-Gap Threshold</strong> (in minutes) and <strong>Distance Radius</strong> (in meters) for perfect location mapping.
+                      </p>
+                    </div>
+
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Interactive Map Preview</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Features a built-in interactive map with color-coded pins (green for starts, red for ends, blue for matched gaps) and line-route tracks to inspect route metrics dynamically.
+                      </p>
+                    </div>
+
+                    <div className="p-4 border border-slate-200/60 rounded-xl space-y-1.5 print-border">
+                      <div className="flex items-center gap-2">
+                        <span className="w-1.5 h-1.5 rounded-full bg-indigo-600"></span>
+                        <h4 className="text-xs font-bold text-slate-800">Tabular Data &amp; Export Engine</h4>
+                      </div>
+                      <p className="text-[11px] text-slate-500 leading-normal pl-3.5">
+                        Provides an active table viewer to search, filter, and inspect specific columns before generating the newly-labeled, standardized log file.
+                      </p>
+                    </div>
+                  </div>
+                </div>
+
+                {/* GRAPHICAL DATA FLOW DIAGRAM (Using pure Tailwind components) */}
+                <div className="page-break pt-4 space-y-4">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                    Visual Data Processing Flowchart
+                  </h3>
+                  
+                  {/* Visual flowchart container */}
+                  <div className="bg-slate-50 print-bg-slate border border-slate-200 rounded-2xl p-6 flex flex-col md:flex-row items-center justify-around gap-4 text-center">
+                    
+                    {/* Node 1 */}
+                    <div className="flex-1 max-w-[180px] p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative print-border">
+                      <div className="w-7 h-7 bg-amber-100 text-amber-700 font-bold rounded-full flex items-center justify-center text-xs mx-auto">1</div>
+                      <p className="text-xs font-bold text-slate-700">Ingest Logs</p>
+                      <p className="text-[10px] text-slate-400">Loads KMZ, KML or CSV files securely inside browser cache.</p>
+                    </div>
+
+                    <ArrowRight className="w-5 h-5 text-indigo-400 rotate-90 md:rotate-0" />
+
+                    {/* Node 2 */}
+                    <div className="flex-1 max-w-[180px] p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative print-border">
+                      <div className="w-7 h-7 bg-indigo-100 text-indigo-700 font-bold rounded-full flex items-center justify-center text-xs mx-auto">2</div>
+                      <p className="text-xs font-bold text-slate-700">Boundary Scanner</p>
+                      <p className="text-[10px] text-slate-400">Identifies the earliest and latest timestamps to label shift transitions.</p>
+                    </div>
+
+                    <ArrowRight className="w-5 h-5 text-indigo-400 rotate-90 md:rotate-0" />
+
+                    {/* Node 3 */}
+                    <div className="flex-1 max-w-[180px] p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative print-border">
+                      <div className="w-7 h-7 bg-emerald-100 text-emerald-700 font-bold rounded-full flex items-center justify-center text-xs mx-auto">3</div>
+                      <p className="text-xs font-bold text-slate-700">Multi-Project Match</p>
+                      <p className="text-[10px] text-slate-400">Applies spatial rules and evaluates up to 10 related numbers.</p>
+                    </div>
+
+                    <ArrowRight className="w-5 h-5 text-indigo-400 rotate-90 md:rotate-0" />
+
+                    {/* Node 4 */}
+                    <div className="flex-1 max-w-[180px] p-4 bg-white border border-slate-200 rounded-xl shadow-2xs space-y-1 relative print-border">
+                      <div className="w-7 h-7 bg-indigo-600 text-white font-bold rounded-full flex items-center justify-center text-xs mx-auto">4</div>
+                      <p className="text-xs font-bold text-slate-700">Polished Export</p>
+                      <p className="text-[10px] text-slate-400">Updates files in real-time, displaying mapped paths and exporting files.</p>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Step-by-Step Practical Instructions */}
+                <div className="space-y-4">
+                  <h3 className="text-sm font-black text-slate-800 uppercase tracking-wider border-b border-slate-100 pb-2">
+                    How to Process Trips in 4 Steps
+                  </h3>
+                  <div className="space-y-4 text-xs">
+                    
+                    {/* Step 1 */}
+                    <div className="flex gap-4">
+                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-slate-700 shrink-0">01</span>
+                      <div className="space-y-1">
+                        <strong className="text-slate-800 block text-xs">Upload your Samsara Raw Data</strong>
+                        <p className="text-slate-500 leading-relaxed text-[11px]">
+                          Drag and drop or select either a raw <strong>.KMZ</strong> track file or a standard spreadsheet <strong>.CSV</strong> exported from your Samsara dashboard. 
+                          The tool parses timestamps and extracts geographic coordinates.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 2 */}
+                    <div className="flex gap-4">
+                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-slate-700 shrink-0">02</span>
+                      <div className="space-y-1">
+                        <strong className="text-slate-800 block text-xs">Set Shift Boundary Configuration</strong>
+                        <p className="text-slate-500 leading-relaxed text-[11px]">
+                          Specify the precise terms you want applied at shift changes. 
+                          Choose <strong>Append</strong> to keep original location names while attaching tags (e.g. <code>Location-Name (START OF SHIFT)</code>), or <strong>Replace</strong> to substitute them completely.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 3 */}
+                    <div className="flex gap-4">
+                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-slate-700 shrink-0">03</span>
+                      <div className="space-y-1">
+                        <strong className="text-slate-800 block text-xs">Map Projects &amp; Related Numbers</strong>
+                        <p className="text-slate-500 leading-relaxed text-[11px]">
+                          Enter your active Project Number and link it to an operational activity. 
+                          If the data contains multiple connected/overlapping accounts, turn on <strong>Related Projects</strong> and list up to 10 secondary project numbers. 
+                          The system checks secondary values sequentially.
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Step 4 */}
+                    <div className="flex gap-4">
+                      <span className="w-7 h-7 rounded-full bg-slate-100 border border-slate-300 flex items-center justify-center font-bold text-slate-700 shrink-0">04</span>
+                      <div className="space-y-1">
+                        <strong className="text-slate-800 block text-xs">Inspect Map and Trigger Download</strong>
+                        <p className="text-slate-500 leading-relaxed text-[11px]">
+                          A dynamic track map will plot your starting point, ending point, and mapped project nodes. 
+                          Scroll through the processed data table to ensure everything checks out, then click <strong>Download Processed File</strong>.
+                        </p>
+                      </div>
+                    </div>
+
+                  </div>
+                </div>
+
+                {/* Print watermark/footer credits */}
+                <div className="border-t border-slate-100 pt-8 mt-12 text-center">
+                  <p className="text-[9px] text-slate-400 font-mono tracking-wider uppercase">
+                    SchEZPath Trip Automator Suite • Powered by Local Sandbox Parsing
+                  </p>
+                  <p className="text-[10px] text-slate-400 font-medium mt-1">
+                    Developed by: <strong>Patrick Franz O. B.</strong> • All Rights Reserved.
+                  </p>
+                </div>
+
+              </div>
+
+              {/* Modal Control Footer */}
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2 shrink-0 no-print">
+                <button
+                  onClick={() => setIsManualOpen(false)}
+                  className="px-4 py-1.5 border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 rounded-lg text-xs font-bold transition-all cursor-pointer"
+                >
+                  Close Handbook
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
