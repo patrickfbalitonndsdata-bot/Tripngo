@@ -1,6 +1,6 @@
 {
-  "name": "Samsara Shift Labeler",
-  "description": "Upload and process Samsara KMZ or CSV files to scan log files, rename placemarks, and mark the start and end of shifts with custom labels.",
+  "name": "SchEZPath",
+  "description": "Samsara Logs Trip Automator with support for multi-related projects and path tracking automation.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
