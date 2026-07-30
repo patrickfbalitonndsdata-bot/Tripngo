@@ -1,0 +1,6 @@
+{
+  "name": "Samsara Shift Labeler",
+  "description": "Upload and process Samsara KMZ or CSV files to scan log files, rename placemarks, and mark the start and end of shifts with custom labels.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
