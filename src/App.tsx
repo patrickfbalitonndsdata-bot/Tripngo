@@ -21,7 +21,8 @@ import {
   Plus,
   Route,
   BookOpen,
-  Printer
+  Printer,
+  ExternalLink
 } from 'lucide-react';
 
 import SamsaraMap from './components/SamsaraMap';
@@ -87,6 +88,7 @@ export default function App() {
   const [selectedCsvColumn, setSelectedCsvColumn] = useState<string>('');
   const [downloadUrl, setDownloadUrl] = useState<string | null>(null);
   const [outputFileName, setOutputFileName] = useState<string>('');
+  const [activeView, setActiveView] = useState<'path' | 'trip'>('path');
   
   // Drag & drop state
   const [isDragActive, setIsDragActive] = useState(false);
@@ -408,7 +410,7 @@ export default function App() {
     <div className="min-h-screen bg-slate-50 text-slate-900 flex flex-col font-sans selection:bg-indigo-100 selection:text-indigo-900">
       {/* Top Header / Nav */}
       <header className="h-16 px-6 lg:px-8 border-b border-slate-200 bg-white flex items-center justify-between shrink-0 sticky top-0 z-30 shadow-xs">
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-3 animate-fadeIn">
           <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center shadow-md shadow-indigo-500/10">
             <Route className="w-4.5 h-4.5 text-white" />
           </div>
@@ -421,14 +423,41 @@ export default function App() {
             </p>
           </div>
         </div>
-        <div className="flex items-center gap-4">
+
+        {/* Integrated View Selection Tabs */}
+        <div className="hidden md:flex items-center bg-slate-100/80 p-1 rounded-xl border border-slate-200/60">
+          <button
+            onClick={() => setActiveView('path')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeView === 'path'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-950'
+            }`}
+          >
+            <Route className="w-3.5 h-3.5" />
+            <span>SchEZPath Automator</span>
+          </button>
+          <button
+            onClick={() => setActiveView('trip')}
+            className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 ${
+              activeView === 'trip'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-950'
+            }`}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>SchEZTrip Integrated</span>
+          </button>
+        </div>
+
+        <div className="flex items-center gap-3">
           <button
             onClick={() => setIsManualOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-slate-600 hover:text-indigo-600 hover:bg-slate-50 border border-slate-200 hover:border-indigo-100 transition-all cursor-pointer"
             title="Open User Manual"
           >
             <BookOpen className="w-3.5 h-3.5" />
-            <span>User Manual & Guide</span>
+            <span className="hidden sm:inline">User Manual</span>
           </button>
           <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-100 px-2.5 py-1 rounded-lg">
             <div className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
@@ -440,6 +469,32 @@ export default function App() {
       {/* Main Container */}
       <main className="flex-1 max-w-7xl mx-auto w-full px-4 sm:px-6 lg:px-8 py-8 space-y-8">
         
+        {/* Mobile View Selector Tabs */}
+        <div className="md:hidden flex items-center justify-center bg-slate-100 p-1 rounded-xl border border-slate-200/60 w-full mb-2">
+          <button
+            onClick={() => setActiveView('path')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeView === 'path'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Route className="w-3.5 h-3.5" />
+            <span>Automator</span>
+          </button>
+          <button
+            onClick={() => setActiveView('trip')}
+            className={`flex-1 py-1.5 rounded-lg text-xs font-bold transition-all text-center flex items-center justify-center gap-1.5 cursor-pointer ${
+              activeView === 'trip'
+                ? 'bg-white text-indigo-600 shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ExternalLink className="w-3.5 h-3.5" />
+            <span>SchEZTrip</span>
+          </button>
+        </div>
+
         {/* Dynamic Alert Banner */}
         <AnimatePresence mode="wait">
           {errorMessage && (
@@ -476,6 +531,41 @@ export default function App() {
             </motion.div>
           )}
         </AnimatePresence>
+
+        {activeView === 'trip' ? (
+          <div className="w-full bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-xs flex flex-col min-h-[750px] h-[calc(100vh-14rem)] animate-fadeIn">
+            <div className="px-6 py-4 border-b border-slate-200 bg-slate-50 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 rounded-lg bg-indigo-100 flex items-center justify-center">
+                  <ExternalLink className="w-3.5 h-3.5 text-indigo-600" />
+                </div>
+                <div>
+                  <h2 className="text-xs font-bold text-slate-800">SchEZTrip Portal Integration</h2>
+                  <p className="text-[10px] text-slate-400 font-semibold">Active sandbox session of https://scheztrip.netlify.app/</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-2">
+                <a
+                  href="https://scheztrip.netlify.app/"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1.5 px-2.5 py-1 text-[10px] font-bold text-slate-600 hover:text-indigo-600 bg-white border border-slate-200 hover:border-indigo-100 rounded-md transition-all cursor-pointer shadow-2xs"
+                  title="Open SchEZTrip Web App in a new window"
+                >
+                  <span>Open in New Tab</span>
+                  <ExternalLink className="w-3 h-3" />
+                </a>
+              </div>
+            </div>
+            <iframe
+              src="https://scheztrip.netlify.app/"
+              title="SchEZTrip App"
+              className="w-full flex-1 border-none bg-slate-50"
+              sandbox="allow-same-origin allow-scripts allow-popups allow-forms"
+            />
+          </div>
+        ) : (
+          <>
 
         {/* Top Section: Upload Area & Quick Config */}
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
@@ -1040,6 +1130,8 @@ export default function App() {
           </div>
 
         </div>
+        </>
+        )}
 
       </main>
 
