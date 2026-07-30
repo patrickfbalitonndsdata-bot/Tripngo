@@ -333,7 +333,9 @@ export async function processKMZ(
   projectNumbers: string[] = [],
   timeGapThresholdMinutes: number = 10,
   distanceThresholdMeters: number = 200,
-  projectActivities: string[] = []
+  projectActivities: string[] = [],
+  projectRelatedEnabled: boolean[] = [],
+  relatedProjectNumbers: string[] = []
 ): Promise<{
   updatedBlob: Blob;
   placemarks: PlacemarkInfo[];
@@ -563,56 +565,88 @@ export async function processKMZ(
     }
   }
 
-  // 2. Identify Non-Samsara reference pins matching entered project numbers
-  const cleanedProjectNumbers = projectNumbers
-    .map(p => p.trim())
-    .filter(p => p.length > 0);
+  // 2. Identify Non-Samsara reference pins matching entered project configurations (including Related Projects)
+  interface ProjectConfig {
+    index: number;
+    primaryProj: string;
+    secondaryProj: string;
+    isRelatedEnabled: boolean;
+    displayText: string;
+    activity: string;
+  }
 
-  // Map project number to its selected activity
-  const projectToActivityMap = new Map<string, string>();
+  const configs: ProjectConfig[] = [];
   for (let j = 0; j < projectNumbers.length; j++) {
-    const proj = projectNumbers[j].trim();
-    if (proj) {
-      const act = projectActivities[j] ? projectActivities[j].trim() : 'ACTIVITY';
-      projectToActivityMap.set(proj, act || 'ACTIVITY');
+    const primary = (projectNumbers[j] || '').trim();
+    if (primary) {
+      const isRelated = !!projectRelatedEnabled[j];
+      const secondary = isRelated ? (relatedProjectNumbers[j] || '').trim() : '';
+      const act = (projectActivities[j] || '').trim() || 'ACTIVITY';
+      
+      const displayText = isRelated && secondary 
+        ? `${primary}, ${secondary}` 
+        : primary;
+        
+      configs.push({
+        index: j,
+        primaryProj: primary,
+        secondaryProj: secondary,
+        isRelatedEnabled: isRelated,
+        displayText,
+        activity: act
+      });
     }
   }
 
-  if (cleanedProjectNumbers.length > 0 && totalTargeted > 1) {
+  if (configs.length > 0 && totalTargeted > 1) {
     const referencePins = rawPlacemarks.filter(pm => !pm.info.isTargeted);
     
-    // Check if reference pin matches any project number
+    // Check if reference pin matches any project number (primary or secondary if related)
     const normalizeProjectString = (str: string): string => {
       return str.replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
     };
 
-    const getMatchedProject = (pin: typeof rawPlacemarks[0]): string | undefined => {
+    const getMatchedConfig = (pin: typeof rawPlacemarks[0]): ProjectConfig | undefined => {
       const pinName = pin.info.originalName.toUpperCase();
       const pinDesc = (pin.info.description || '').toUpperCase();
       const pinNameNorm = normalizeProjectString(pin.info.originalName);
       const pinDescNorm = normalizeProjectString(pin.info.description || '');
 
-      for (const proj of cleanedProjectNumbers) {
-        const projUpper = proj.toUpperCase();
-        const projNorm = normalizeProjectString(proj);
+      for (const config of configs) {
+        // Check primary project number
+        const primUpper = config.primaryProj.toUpperCase();
+        const primNorm = normalizeProjectString(config.primaryProj);
 
-        if (pinName.includes(projUpper) || pinDesc.includes(projUpper)) {
-          return proj;
+        if (pinName.includes(primUpper) || pinDesc.includes(primUpper)) {
+          return config;
         }
-        if (projNorm.length > 0 && (pinNameNorm.includes(projNorm) || pinDescNorm.includes(projNorm))) {
-          return proj;
+        if (primNorm.length > 0 && (pinNameNorm.includes(primNorm) || pinDescNorm.includes(primNorm))) {
+          return config;
+        }
+
+        // If related is enabled, check secondary project number
+        if (config.isRelatedEnabled && config.secondaryProj) {
+          const secUpper = config.secondaryProj.toUpperCase();
+          const secNorm = normalizeProjectString(config.secondaryProj);
+
+          if (pinName.includes(secUpper) || pinDesc.includes(secUpper)) {
+            return config;
+          }
+          if (secNorm.length > 0 && (pinNameNorm.includes(secNorm) || pinDescNorm.includes(secNorm))) {
+            return config;
+          }
         }
       }
       return undefined;
     };
 
     const matchedReferencePins = referencePins
-      .map(pm => ({ pm, project: getMatchedProject(pm) }))
-      .filter(item => item.project !== undefined) as { pm: typeof rawPlacemarks[0]; project: string }[];
+      .map(pm => ({ pm, config: getMatchedConfig(pm) }))
+      .filter(item => item.config !== undefined) as { pm: typeof rawPlacemarks[0]; config: ProjectConfig }[];
 
     // Detect time gaps and associate them with projects
     const gapThresholdMs = timeGapThresholdMinutes * 60 * 1000;
-    const projectToGapsMap = new Map<string, typeof targetPlacemarks>();
+    const configToGapsMap = new Map<number, typeof targetPlacemarks>();
 
     for (let i = 0; i < totalTargeted - 1; i++) {
       const pmStart = targetPlacemarks[i];
@@ -631,26 +665,26 @@ export async function processKMZ(
 
           // Find if there is any matching reference pin within the distance threshold.
           // If multiple reference pins are nearby, associate with the closest one.
-          let closestProject: string | undefined = undefined;
+          let closestConfig: ProjectConfig | undefined = undefined;
           let minDistance = distanceThresholdMeters;
 
-          matchedReferencePins.forEach(({ pm: refPin, project }) => {
+          matchedReferencePins.forEach(({ pm: refPin, config }) => {
             const distToStart = getHaversineDistance(pmStart.info.coordinates, refPin.info.coordinates);
             const distToEnd = getHaversineDistance(pmEnd.info.coordinates, refPin.info.coordinates);
             const distance = Math.min(distToStart, distToEnd);
 
             if (distance <= minDistance) {
               minDistance = distance;
-              closestProject = project;
+              closestConfig = config;
             }
           });
 
-          if (closestProject) {
-            const project = closestProject;
-            if (!projectToGapsMap.has(project)) {
-              projectToGapsMap.set(project, []);
+          if (closestConfig) {
+            const idx = closestConfig.index;
+            if (!configToGapsMap.has(idx)) {
+              configToGapsMap.set(idx, []);
             }
-            const list = projectToGapsMap.get(project)!;
+            const list = configToGapsMap.get(idx)!;
             if (!list.some(p => p.info.id === pmStart.info.id)) list.push(pmStart);
             if (!list.some(p => p.info.id === pmEnd.info.id)) list.push(pmEnd);
           }
@@ -659,8 +693,9 @@ export async function processKMZ(
     }
 
     // Identify the first gap pin and the last gap pin for each project, and label them
-    projectToGapsMap.forEach((pins, project) => {
-      if (pins.length > 0) {
+    configToGapsMap.forEach((pins, configIdx) => {
+      const config = configs.find(c => c.index === configIdx);
+      if (config && pins.length > 0) {
         // Sort chronologically
         pins.sort((a, b) => {
           const tA = a.info.timestamp ? new Date(a.info.timestamp).getTime() : 0;
@@ -670,7 +705,8 @@ export async function processKMZ(
 
         const firstGapPin = pins[0];
         const lastGapPin = pins[pins.length - 1];
-        const activity = projectToActivityMap.get(project) || 'ACTIVITY';
+        const activity = config.activity;
+        const project = config.displayText;
 
         // Label first gap pin as START OF JOB ACTIVITY
         firstGapPin.info.isJobActivityStart = true;
