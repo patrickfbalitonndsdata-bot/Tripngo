@@ -64,6 +64,8 @@ export default function App() {
   // New States for project numbers & gaps
   const [projectNumbers, setProjectNumbers] = useState<string[]>(['']);
   const [projectActivities, setProjectActivities] = useState<string[]>(['']);
+  const [projectRelatedEnabled, setProjectRelatedEnabled] = useState<boolean[]>([false]);
+  const [relatedProjectNumbers, setRelatedProjectNumbers] = useState<string[]>(['']);
   const [timeGapThresholdMinutes, setTimeGapThresholdMinutes] = useState<number>(5);
   const [distanceThresholdMeters, setDistanceThresholdMeters] = useState<number>(200);
   const [isProcessed, setIsProcessed] = useState<boolean>(false);
@@ -153,6 +155,8 @@ export default function App() {
     setIsProcessed(false);
     setProjectNumbers(['']);
     setProjectActivities(['']);
+    setProjectRelatedEnabled([false]);
+    setRelatedProjectNumbers(['']);
     if (downloadUrl) {
       URL.revokeObjectURL(downloadUrl);
       setDownloadUrl(null);
@@ -201,7 +205,9 @@ export default function App() {
     projs: string[],
     gapMin: number,
     distM: number,
-    acts: string[] = []
+    acts: string[] = [],
+    relatedEnabled: boolean[] = [],
+    relatedProjs: string[] = []
   ) => {
     setIsLoading(true);
     setErrorMessage(null);
@@ -217,7 +223,9 @@ export default function App() {
           projs,
           gapMin,
           distM,
-          acts
+          acts,
+          relatedEnabled,
+          relatedProjs
         );
 
         setPlacemarks(parsedPlacemarks);
@@ -287,8 +295,17 @@ export default function App() {
     if (fileType === 'kmz' || fileType === 'kml') {
       const hasEmptyProject = projectNumbers.some(p => p.trim() === '');
       const hasEmptyActivity = projectActivities.some(a => a.trim() === '');
-      if (hasEmptyProject || hasEmptyActivity) {
-        setErrorMessage('Warning: All Project Numbers and Activities must be filled out before processing.');
+      
+      let hasEmptyRelated = false;
+      for (let i = 0; i < projectNumbers.length; i++) {
+        if (projectRelatedEnabled[i] && !(relatedProjectNumbers[i] || '').trim()) {
+          hasEmptyRelated = true;
+          break;
+        }
+      }
+
+      if (hasEmptyProject || hasEmptyActivity || hasEmptyRelated) {
+        setErrorMessage('Warning: All Project Numbers (including Related Projects if enabled) and Activities must be filled out before processing.');
         return;
       }
     }
@@ -303,7 +320,9 @@ export default function App() {
       projectNumbers,
       timeGapThresholdMinutes,
       distanceThresholdMeters,
-      projectActivities
+      projectActivities,
+      projectRelatedEnabled,
+      relatedProjectNumbers
     );
   };
 
@@ -321,7 +340,9 @@ export default function App() {
       projectNumbers,
       timeGapThresholdMinutes,
       distanceThresholdMeters,
-      projectActivities
+      projectActivities,
+      projectRelatedEnabled,
+      relatedProjectNumbers
     );
   };
 
@@ -670,8 +691,12 @@ export default function App() {
                                 onClick={() => {
                                   const updatedProjs = projectNumbers.filter((_, i) => i !== idx);
                                   const updatedActs = projectActivities.filter((_, i) => i !== idx);
+                                  const updatedRelatedEnabled = projectRelatedEnabled.filter((_, i) => i !== idx);
+                                  const updatedRelatedProjs = relatedProjectNumbers.filter((_, i) => i !== idx);
                                   setProjectNumbers(updatedProjs);
                                   setProjectActivities(updatedActs);
+                                  setProjectRelatedEnabled(updatedRelatedEnabled);
+                                  setRelatedProjectNumbers(updatedRelatedProjs);
                                 }}
                                 className="p-1 text-slate-400 hover:text-red-500 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
                                 title="Remove Config"
@@ -695,6 +720,40 @@ export default function App() {
                               className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 font-semibold"
                             />
                           </div>
+
+                          <div className="flex items-center justify-between py-1">
+                            <span className="text-[10px] font-semibold text-slate-500">Related Projects</span>
+                            <label className="relative inline-flex items-center cursor-pointer select-none">
+                              <input
+                                type="checkbox"
+                                checked={projectRelatedEnabled[idx] || false}
+                                onChange={(e) => {
+                                  const updated = [...projectRelatedEnabled];
+                                  updated[idx] = e.target.checked;
+                                  setProjectRelatedEnabled(updated);
+                                }}
+                                className="sr-only peer"
+                              />
+                              <div className="w-8 h-4 bg-slate-200 peer-focus:outline-none rounded-full peer peer-checked:after:translate-x-full after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-slate-300 after:border after:rounded-full after:h-3 after:w-3 after:transition-all peer-checked:bg-indigo-600"></div>
+                            </label>
+                          </div>
+
+                          {(projectRelatedEnabled[idx] || false) && (
+                            <div className="space-y-1 animate-fadeIn duration-200">
+                              <span className="text-[10px] font-semibold text-slate-500">Related Project Number</span>
+                              <input
+                                type="text"
+                                value={relatedProjectNumbers[idx] || ''}
+                                onChange={(e) => {
+                                  const updated = [...relatedProjectNumbers];
+                                  updated[idx] = e.target.value;
+                                  setRelatedProjectNumbers(updated);
+                                }}
+                                placeholder="e.g. 26-240027"
+                                className="w-full text-xs px-2.5 py-1.5 rounded-lg border border-slate-200 bg-white focus:outline-none focus:ring-1 focus:ring-indigo-500 text-slate-700 font-semibold"
+                              />
+                            </div>
+                          )}
 
                           <div className="space-y-1">
                             <span className="text-[10px] font-semibold text-slate-500">Activity Dropdown</span>
@@ -725,6 +784,8 @@ export default function App() {
                         onClick={() => {
                           setProjectNumbers([...projectNumbers, '']);
                           setProjectActivities([...projectActivities, '']);
+                          setProjectRelatedEnabled([...projectRelatedEnabled, false]);
+                          setRelatedProjectNumbers([...relatedProjectNumbers, '']);
                         }}
                         className="w-full py-1.5 px-3 border border-dashed border-indigo-200 hover:border-indigo-400 text-indigo-600 hover:bg-indigo-50/50 rounded-lg text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer mt-1"
                       >
